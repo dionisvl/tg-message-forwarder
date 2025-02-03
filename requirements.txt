@@ -1,0 +1,4 @@
+flask==3.1
+telethon==1.36
+redis==5.2
+python-dotenv==1.0.0
