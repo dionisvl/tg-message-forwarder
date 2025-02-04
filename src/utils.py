@@ -62,9 +62,18 @@ async def handle_message(client, event, condition_func):
     logger.info("Message processed.")
 
 def text_contains_test(message):
-    logger.info("Checking message " + message.text)
+    logger.info("Checking message: " + message.text)
+
+    # Check if the message contains excluded names
+    for excluded_name in Config.EXCLUDED_NAMES:
+        if excluded_name.strip() and excluded_name.strip().lower() in message.text.lower():
+            logger.info(f"Message contains excluded name: {excluded_name}")
+            return False
+
+    # Check the summ of order
     match = re.search(r"Сумма заказа:\s*(\d+)", message.text)
     if match:
         order_amount = int(match.group(1))
         return order_amount > Config.ORDER_AMOUNT_THRESHOLD
+
     return False
