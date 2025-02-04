@@ -12,11 +12,18 @@ logger = logging.getLogger(__name__)
 app = Quart(__name__)
 bot_manager = None
 
-async def init_bot():
+async def init_app():
     global bot_manager
+    config = HyperConfig()
+    config.bind = ["0.0.0.0:5000"]
+
+    # Initialize bot manager first
     bot_manager = BotManager()
-    if not await bot_manager.start_existing_session():
-        logger.info("No valid existing session found. Please log in.")
+    # Try to start existing session
+    await bot_manager.start_existing_session()
+
+    # Start the web server
+    await serve(app, config)
 
 @app.route('/')
 async def index():
@@ -49,12 +56,24 @@ async def verify():
         logger.error(f"Verification error: {e}")
         return {'error': str(e)}, 500
 
+@app.route('/api/toggle_monitoring', methods=['POST'])
+async def toggle_monitoring():
+    try:
+        if not bot_manager.is_running():
+            return {'error': 'Bot is not running'}, 400
+
+        is_monitoring = await bot_manager.toggle_monitoring()
+        return {'status': 'Monitoring ' + ('started' if is_monitoring else 'stopped')}
+    except Exception as e:
+        logger.error(f"Toggle monitoring error: {e}")
+        return {'error': str(e)}, 500
+
 @app.route('/api/status')
 async def status():
-    return {'running': bot_manager.is_running()}
+    return {
+        'running': bot_manager.is_running(),
+        'monitoring': bot_manager.is_monitoring()
+    }
 
 if __name__ == '__main__':
-    asyncio.run(init_bot())
-    config = HyperConfig()
-    config.bind = ["0.0.0.0:5000"]
-    asyncio.run(serve(app, config))
+    asyncio.run(init_app())
