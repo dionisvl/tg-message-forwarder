@@ -1,21 +1,21 @@
 services:
-  userbot:
+  web:
     build: .
+    ports:
+      - "5000:5000"
     environment:
       - REDIS_HOST=redis
     env_file:
       - .env
-    depends_on:
-      - redis
     volumes:
       - ./sessions:/app/sessions
-    restart: unless-stopped
+    depends_on:
+      - redis
 
   redis:
     image: redis:7.2-alpine
     volumes:
       - redis_data:/data
-    restart: unless-stopped
 
 volumes:
   redis_data:
