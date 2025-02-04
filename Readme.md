@@ -64,3 +64,7 @@ make up
 - python3.12 -m venv venv
 - source venv/bin/activate
 - pip install -r requirements.txt
+
+### Crontab
+- crontab -e
+- @reboot cd /home/tgbot/tg-message-forwarder && make up
