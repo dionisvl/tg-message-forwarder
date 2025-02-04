@@ -12,12 +12,16 @@ class BotManager:
     def __init__(self):
         self.client = None
         self._running = False
+        self.phone = None
+        self.phone_code_hash = None
 
     async def start_login(self, phone):
         if not self.client:
             self.client = TelegramClient(StringSession(), Config.API_ID, Config.API_HASH)
             await self.client.connect()
-            await self.client.send_code_request(phone)
+            self.phone = phone
+            code_request = await self.client.send_code_request(phone)
+            self.phone_code_hash = code_request.phone_code_hash
 
     def is_running(self):
         return self._running
@@ -27,7 +31,11 @@ class BotManager:
             raise Exception("Must call start_login first")
         try:
             logger.info("Attempting to sign in with code...")
-            await self.client.sign_in(code=code)
+            await self.client.sign_in(
+                phone=self.phone,
+                code=code,
+                phone_code_hash=self.phone_code_hash
+            )
         except SessionPasswordNeededError:
             logger.info("2FA password required, attempting to sign in with password...")
             await self.client.sign_in(password=Config.PASSWORD_2FA)
