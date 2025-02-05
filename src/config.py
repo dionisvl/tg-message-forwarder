@@ -11,8 +11,6 @@ class Config:
     SOURCE_GROUP_ID = int(os.getenv('SOURCE_GROUP_ID'))
     TARGET_USER_ID = int(os.getenv('TARGET_USER_ID'))
     TARGET_USER_NICKNAME = os.getenv('TARGET_USER_NICKNAME')
-    REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
-    REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
     ORDER_AMOUNT_THRESHOLD = int(os.getenv('ORDER_AMOUNT_THRESHOLD', 10000))
 
     EXCLUDED_NAMES = os.getenv('EXCLUDED_NAMES', '').split(',')

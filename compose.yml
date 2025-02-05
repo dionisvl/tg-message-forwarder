@@ -3,19 +3,7 @@ services:
     build: .
     ports:
       - "5000:5000"
-    environment:
-      - REDIS_HOST=redis
     env_file:
       - .env
     volumes:
       - ./sessions:/app/sessions
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:7.2-alpine
-    volumes:
-      - redis_data:/data
-
-volumes:
-  redis_data:

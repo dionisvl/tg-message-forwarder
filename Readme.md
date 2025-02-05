@@ -6,7 +6,6 @@ Built for performance and reliability while keeping the codebase clean and maint
 
 * Monitors group messages using user account session
 * Instantly forwards messages with "Test" button
-* Message deduplication via Redis
 * Containerized with Docker for easy deployment
 * Secure credential management
 * Minimal memory footprint
@@ -15,7 +14,6 @@ Built for performance and reliability while keeping the codebase clean and maint
 * Python 3.12
 * Telethon 
 * Flask
-* Redis 7.2
 * Docker Compose
 
 
@@ -26,6 +24,7 @@ cp .env.example .env
 # ! Fill in your credentials !
 make up
 ```
+- click admin panel http://127.0.0.1:5000/
 
 
 ### Getting needed envs
