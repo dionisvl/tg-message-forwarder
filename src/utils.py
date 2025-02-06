@@ -5,7 +5,12 @@ from config import Config
 import re
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 logger = logging.getLogger(__name__)
 
 async def handle_message(client, event, condition_func):
@@ -27,6 +32,8 @@ async def handle_message(client, event, condition_func):
                     await asyncio.sleep(1)
                 except Exception as e:
                     logger.error(f"Error clicking button: {str(e)}")
+            else:
+                logger.info("No buttons found in message")
 
             # Then proceed with forwarding
             logger.info("Starting message forwarding")
@@ -49,9 +56,10 @@ def text_contains_test(message):
             return False
 
     # Check the summ of order
-    match = re.search(r"Сумма заказа:\s*(\d+)", message.text)
+    match = re.search(r"\*\*Сумма заказа:\*\*\s*(\d+)", message.text)
     if match:
         order_amount = int(match.group(1))
         return order_amount > Config.ORDER_AMOUNT_THRESHOLD
-
-    return False
+    else:
+        logger.info("Message does not contain order amount")
+        return False
