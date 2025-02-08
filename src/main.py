@@ -3,16 +3,11 @@ from telethon.sessions import StringSession
 import asyncio
 import sys
 from config import Config
+from src.app import bot_manager
 from utils import handle_message, text_contains_test
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-async def get_string_session():
-    async with TelegramClient(StringSession(), Config.API_ID, Config.API_HASH) as client:
-        await client.start(phone=Config.PHONE_NUMBER)
-        return client.session.save()
 
 async def main():
     try:
@@ -31,14 +26,17 @@ async def main():
 
     client = TelegramClient(StringSession(session_str), Config.API_ID, Config.API_HASH)
 
-    @client.on(events.NewMessage(chats=Config.SOURCE_GROUP_ID))
-    async def forward_message(event):
-        logger.info("New message received, processing...")
-        await handle_message(client, event, text_contains_test)
+    # By default, app working immediately after start. But additionally user can enable/disable it from admin panel.
+    await bot_manager.toggle_monitoring()
 
     async with client:
         logger.info("Bot started successfully!")
         await client.run_until_disconnected()
+
+async def get_string_session():
+    async with TelegramClient(StringSession(), Config.API_ID, Config.API_HASH) as client:
+        await client.start(phone=Config.PHONE_NUMBER)
+        return client.session.save()
 
 if __name__ == '__main__':
     asyncio.run(main())

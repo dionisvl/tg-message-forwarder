@@ -12,5 +12,6 @@ class Config:
     TARGET_USER_ID = int(os.getenv('TARGET_USER_ID'))
     TARGET_USER_NICKNAME = os.getenv('TARGET_USER_NICKNAME')
     ORDER_AMOUNT_THRESHOLD = int(os.getenv('ORDER_AMOUNT_THRESHOLD', 10000))
-
+    # check interval in seconds (default is 300 seconds = 5 minutes)
+    CONNECTION_CHECK_INTERVAL = int(os.getenv('CONNECTION_CHECK_INTERVAL', 300))
     EXCLUDED_NAMES = os.getenv('EXCLUDED_NAMES', '').split(',')

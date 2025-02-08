@@ -5,12 +5,6 @@ from config import Config
 import re
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
 logger = logging.getLogger(__name__)
 
 async def handle_message(client, event, condition_func):
@@ -56,9 +50,14 @@ def text_contains_test(message):
             return False
 
     # Check the summ of order
-    match = re.search(r"\*\*Сумма заказа:\*\*\s*(\d+)", message.text)
-    if match:
-        order_amount = int(match.group(1))
+    match1 = re.search(r"\*\*Сумма заказа:\*\*\s*(\d+)", message.text)
+    match2 = re.search(r"Сумма заказа:\s*(\d+)", message.text)
+
+    if match1:
+        order_amount = int(match1.group(1))
+        return order_amount > Config.ORDER_AMOUNT_THRESHOLD
+    if match2:
+        order_amount = int(match2.group(1))
         return order_amount > Config.ORDER_AMOUNT_THRESHOLD
     else:
         logger.info("Message does not contain order amount")

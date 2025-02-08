@@ -6,7 +6,6 @@ from utils import handle_message, text_contains_test
 import logging
 import asyncio
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class BotManager:
@@ -17,7 +16,7 @@ class BotManager:
         self.phone = None
         self.phone_code_hash = None
         self._handler = None
-        self._client_task = None
+        self._connection_monitor_task = None
 
     def is_running(self):
         return self._running and self.client is not None and self.client.is_connected()
@@ -78,21 +77,47 @@ class BotManager:
             f.write(session_str)
 
         self._running = True
-        self._client_task = asyncio.create_task(self._keep_client_running())
-        logger.info("Bot started successfully")
+        # Start the unified connection monitor task
+        self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
+        logger.info("Bot started successfully with new login")
 
-    async def _keep_client_running(self):
-        """Keep the client running in background"""
-        try:
-            logger.info("Starting client background task")
-            while True:
-                if not self.client.is_connected():
+    async def _monitor_and_keep_connection(self):
+        logger.info(f"Starting connection monitor (detailed check interval: {Config.CONNECTION_CHECK_INTERVAL} seconds)")
+        last_health_log = 0
+        while True:
+            if not self.client.is_connected():
+                logger.warning("Client disconnected; attempting to reconnect...")
+                try:
                     await self.client.connect()
-                await asyncio.sleep(1)  # Check connection every second
-        except Exception as e:
-            logger.error(f"Client task error: {e}")
-            self._running = False
-            self._monitoring = False
+                    logger.info("Reconnection successful")
+                except Exception as e:
+                    logger.error(f"Error during reconnection attempt: {e}")
+
+            # Detailed connection health check every CONNECTION_CHECK_INTERVAL seconds
+            current_time = asyncio.get_running_loop().time()
+            if current_time - last_health_log >= Config.CONNECTION_CHECK_INTERVAL:
+                try:
+                    me = await self.client.get_me()
+                    logger.info(f"1 - Logged as {me.first_name}")
+                except Exception as e:
+                    logger.error(f"Health check error: {e}")
+
+                # Check for group existence and membership
+                try:
+                    group = await self.client.get_entity(Config.SOURCE_GROUP_ID)
+                    # If group exists, attempt to retrieve its title
+                    group_title = getattr(group, 'title', 'Unknown Group')
+                    logger.info(f"2 - Membership in: '{group_title}'")
+                except Exception as e:
+                    logger.error(f"Group check error: {e}")
+
+                logger.info(f"3 - Is running: '{self._running}'")
+                logger.info(f"4 - Monitoring: '{self._monitoring}'")
+
+                last_health_log = current_time
+
+            await asyncio.sleep(1)
+
 
     async def start_existing_session(self):
         """Start bot with existing session if available"""
@@ -112,8 +137,17 @@ class BotManager:
                     return False
 
                 self._running = True
-                self._client_task = asyncio.create_task(self._keep_client_running())
-                logger.info("Bot started successfully with existing session")
+                # Start the unified connection monitor task
+                self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
+                logger.info("Telethon started successfully with existing session")
+
+                is_monitoring = await self.toggle_monitoring()
+                if is_monitoring:
+                    logger.info("Telethon group monitoring started")
+                else:
+                    logger.error("Error starting Telethon group monitoring")
+                    raise Exception("Error starting Telethon group monitoring")
+
                 return True
 
         except FileNotFoundError:

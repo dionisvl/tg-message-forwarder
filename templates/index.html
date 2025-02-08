@@ -35,6 +35,17 @@
     <div id="monitoringStatus">Monitoring: Off</div>
 </div>
 
+<!-- New logs card -->
+<div class="card" id="logsCard">
+    <h3>Application Logs</h3>
+    <pre id="logsOutput" style="max-height: 300px; overflow-y: scroll; background: #f9f9f9; padding: 1rem;"></pre>
+</div>
+
+<!-- Pass connection interval from server to JavaScript -->
+<script>
+    const connectionInterval = {{ connection_interval }};
+</script>
+
 <script>
     async function startLogin() {
         try {
@@ -110,8 +121,24 @@
         }
     }
 
+    async function fetchLogs() {
+        try {
+            const response = await fetch('/api/logs');
+            const data = await response.json();
+            if (data.logs) {
+                document.getElementById('logsOutput').textContent = data.logs;
+            } else {
+                document.getElementById('logsOutput').textContent = data.error || 'No logs available';
+            }
+        } catch (e) {
+            document.getElementById('logsOutput').textContent = 'Error fetching logs: ' + e;
+        }
+    }
+
     checkStatus();
     setInterval(checkStatus, 5000);
+    fetchLogs();
+    setInterval(fetchLogs, connectionInterval * 1000);
 </script>
 </body>
 </html>

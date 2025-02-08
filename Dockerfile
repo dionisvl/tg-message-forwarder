@@ -14,9 +14,6 @@ WORKDIR /app
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
 
-# Create required directories
-RUN mkdir sessions templates
-
 # Copy application code last since it changes most frequently
 COPY src/ .
 COPY templates/ templates/
