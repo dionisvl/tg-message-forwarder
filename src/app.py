@@ -98,6 +98,9 @@ async def toggle_monitoring():
             return {'error': 'Bot is not running'}, 400
 
         is_monitoring = await bot_manager.toggle_monitoring()
+
+        logger.info(f"Monitoring toggled to: {is_monitoring}")
+
         return {'status': 'Monitoring ' + ('started' if is_monitoring else 'stopped')}
     except Exception as e:
         logger.error(f"Toggle monitoring error: {e}")
