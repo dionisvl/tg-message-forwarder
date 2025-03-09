@@ -7,3 +7,9 @@ services:
       - .env
     volumes:
       - ./sessions:/app/sessions
+    logging:
+      driver: "local"
+      options:
+        max-size: "1m"
+        max-file: "2"
+        max-time: "259200s"  # 3 days
