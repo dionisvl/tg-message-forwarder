@@ -61,7 +61,8 @@ make up
 
 ### Venv
 - python3.12 -m venv venv
-- source venv/bin/activate
+- bash
+- source venv/bin/activate / source venv/bin/activate.fish
 - pip install -r requirements.txt
 
 ### Crontab

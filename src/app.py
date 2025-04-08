@@ -12,13 +12,17 @@ from hypercorn.asyncio import serve
 # Create logs directory if not exists and add a file handler for logging
 if not os.path.exists('logs'):
     os.makedirs('logs')
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# --- SET UP FILE HANDLER ---
 file_handler = logging.FileHandler('logs/app.log')
 file_handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
+
+logging.getLogger().addHandler(file_handler)
 
 app = Quart(__name__)
 app.secret_key = os.getenv('ADMIN_SECRET', 'default_secret')  # Secret key for session management

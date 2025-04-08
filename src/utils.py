@@ -42,11 +42,12 @@ async def handle_message(client, event, condition_func):
 
 def text_contains_test(message):
     logger.info("Checking message: " + message.text)
+    logger.info(f"DEBUG: Message length is {len(message.text)} characters.")
 
     # Check if the message contains excluded names
     for excluded_name in Config.EXCLUDED_NAMES:
         if excluded_name.strip() and excluded_name.strip().lower() in message.text.lower():
-            logger.info(f"Message contains excluded name: {excluded_name}")
+            logger.warning(f"Message contains excluded name: {excluded_name}")
             return False
 
     # Check the summ of order
