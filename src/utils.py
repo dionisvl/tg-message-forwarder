@@ -15,8 +15,8 @@ async def handle_message(client, event, condition_func):
             if event.message.buttons:
                 logger.info("Found buttons in message, preparing to click 'Забрать заказ'")
                 try:
-                    # Random delay between 3 and 5 seconds before clicking
-                    delay = random.uniform(3.0, 5.0)
+                    # Random delay before clicking
+                    delay = random.uniform(0.0, 0.1)
                     logger.info(f"Waiting {delay:.2f} seconds before clicking...")
                     await asyncio.sleep(delay)
 
