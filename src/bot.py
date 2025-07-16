@@ -17,12 +17,16 @@ class BotManager:
         self.phone_code_hash = None
         self._handler = None
         self._connection_monitor_task = None
+        self._session_lost = False
 
     def is_running(self):
         return self._running and self.client is not None and self.client.is_connected()
 
     def is_monitoring(self):
         return self._monitoring
+    
+    def is_session_lost(self):
+        return self._session_lost
 
     async def toggle_monitoring(self):
         if not self.is_running():
@@ -77,6 +81,7 @@ class BotManager:
             f.write(session_str)
 
         self._running = True
+        self._session_lost = False
         # Start the unified connection monitor task
         self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
         logger.info("Bot started successfully with new login")
@@ -96,18 +101,37 @@ class BotManager:
             # Detailed connection health check every CONNECTION_CHECK_INTERVAL seconds
             current_time = asyncio.get_running_loop().time()
             if current_time - last_health_log >= Config.CONNECTION_CHECK_INTERVAL:
+                # Check if client is authorized first
+                if not await self.client.is_user_authorized():
+                    logger.error("Client is not authorized - session expired or invalid")
+                    self._session_lost = True
+                    self._running = False
+                    self._monitoring = False
+                    # Stop monitoring handler if it exists
+                    if self._handler:
+                        self.client.remove_event_handler(self._handler)
+                        self._handler = None
+                    logger.error("Session lost - bot stopped, please re-authenticate")
+                    break
+                
                 try:
                     me = await self.client.get_me()
-                    logger.info(f"1 - Logged as {me.first_name}")
+                    if me is not None:
+                        logger.info(f"1 - Logged as {me.first_name}")
+                    else:
+                        logger.error("1 - User info is None - authorization issue")
                 except Exception as e:
                     logger.error(f"Health check error: {e}")
 
-                # Check for group existence and membership
+                # Check for group existence and membership only if authorized
                 try:
-                    group = await self.client.get_entity(Config.SOURCE_GROUP_ID)
-                    # If group exists, attempt to retrieve its title
-                    group_title = getattr(group, 'title', 'Unknown Group')
-                    logger.info(f"2 - Membership in: '{group_title}'")
+                    if await self.client.is_user_authorized():
+                        group = await self.client.get_entity(Config.SOURCE_GROUP_ID)
+                        # If group exists, attempt to retrieve its title
+                        group_title = getattr(group, 'title', 'Unknown Group')
+                        logger.info(f"2 - Membership in: '{group_title}'")
+                    else:
+                        logger.error("2 - Cannot check group - client not authorized")
                 except Exception as e:
                     logger.error(f"Group check error: {e}")
 
@@ -137,6 +161,7 @@ class BotManager:
                     return False
 
                 self._running = True
+                self._session_lost = False
                 # Start the unified connection monitor task
                 self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
                 logger.info("Telethon started successfully with existing session")

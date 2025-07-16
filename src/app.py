@@ -114,7 +114,8 @@ async def toggle_monitoring():
 async def status():
     return {
         'running': bot_manager.is_running(),
-        'monitoring': bot_manager.is_monitoring()
+        'monitoring': bot_manager.is_monitoring(),
+        'session_lost': bot_manager.is_session_lost()
     }
 
 # Serve application logs from the log file

@@ -1,5 +1,4 @@
 import asyncio
-import random
 
 from config import Config
 import re
@@ -11,14 +10,19 @@ async def handle_message(client, event, condition_func):
     logger.info("Checking conditions")
     if condition_func(event.message):
         try:
+            # Check if client is authorized before processing
+            if not await client.is_user_authorized():
+                logger.error("Cannot process message - client not authorized")
+                return
+            
             # First, check if the message has a button and click it
             if event.message.buttons:
                 logger.info("Found buttons in message, preparing to click 'Забрать заказ'")
                 try:
                     # Random delay before clicking
-                    delay = random.uniform(0.0, 0.1)
-                    logger.info(f"Waiting {delay:.2f} seconds before clicking...")
-                    await asyncio.sleep(delay)
+                    #delay = random.uniform(0.0, 0.1)
+                    #logger.info(f"Waiting {delay:.2f} seconds before clicking...")
+                    #await asyncio.sleep(delay)
 
                     await event.message.click(text="Забрать заказ")
                     logger.info("Successfully clicked button")

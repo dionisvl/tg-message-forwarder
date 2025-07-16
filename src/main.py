@@ -1,10 +1,9 @@
-from telethon import TelegramClient, events
+from telethon import TelegramClient
 from telethon.sessions import StringSession
 import asyncio
 import sys
 from config import Config
 from src.app import bot_manager
-from utils import handle_message, text_contains_test
 import logging
 
 logger = logging.getLogger(__name__)

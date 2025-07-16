@@ -19,6 +19,9 @@ Built for performance and reliability while keeping the codebase clean and maint
 
 ## Installation
 ```
+apt-get update
+apt-get install git make
+curl -fsSL https://get.docker.com | sudo bash
 git clone <repo>
 cp .env.example .env
 # ! Fill in your credentials !
