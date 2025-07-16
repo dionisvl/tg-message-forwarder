@@ -28,6 +28,29 @@ class BotManager:
     def is_session_lost(self):
         return self._session_lost
 
+    async def _diagnose_session_error(self):
+        """Diagnose session authorization error and log details"""
+        try:
+            me = await self.client.get_me()
+            if me is None:
+                logger.error("Session error: Unable to get user info - session may be expired or revoked")
+            else:
+                logger.error(f"Session error: Got user info but not authorized - possible security reset for user {me.phone}")
+        except Exception as auth_error:
+            logger.error(f"Session error details: {type(auth_error).__name__}: {auth_error}")
+            
+            error_str = str(auth_error)
+            if "UserDeactivated" in error_str:
+                logger.error("Session error reason: Account was deactivated")
+            elif "AuthKeyUnregistered" in error_str:
+                logger.error("Session error reason: Authorization key was unregistered (logged out from another device)")
+            elif "SessionExpired" in error_str:
+                logger.error("Session error reason: Session has expired")
+            elif "SessionRevoked" in error_str:
+                logger.error("Session error reason: Session was revoked (password changed or security reset)")
+            else:
+                logger.error("Session error reason: Unknown authorization error")
+
     async def toggle_monitoring(self):
         if not self.is_running():
             raise Exception("Bot must be running to toggle monitoring")
@@ -158,6 +181,8 @@ class BotManager:
 
                 if not await self.client.is_user_authorized():
                     logger.error("Existing session is not authorized")
+                    await self._diagnose_session_error()
+                    self._session_lost = True
                     return False
 
                 self._running = True

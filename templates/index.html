@@ -111,7 +111,10 @@
 
         // Update session status
         const sessionStatusElement = document.getElementById('sessionStatus');
-        if (data.session_lost) {
+        if (!data.running) {
+            sessionStatusElement.textContent = 'Session: Not Connected';
+            sessionStatusElement.className = '';
+        } else if (data.session_lost) {
             sessionStatusElement.textContent = 'Session: Lost';
             sessionStatusElement.className = 'session-lost';
         } else {
