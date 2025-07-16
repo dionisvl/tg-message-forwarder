@@ -18,7 +18,7 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_DB: tgbot
+      POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
