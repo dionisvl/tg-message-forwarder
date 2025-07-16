@@ -38,6 +38,18 @@
     <div id="sessionStatus">Session: Unknown</div>
 </div>
 
+<!-- Excluded Keywords Management -->
+<div class="card" id="excludedKeywordsCard">
+    <h3>Excluded Keywords Management</h3>
+    <div style="margin-bottom: 1rem;">
+        <input type="text" id="newKeyword" placeholder="Enter keyword to exclude" style="width: 300px;">
+        <button onclick="addKeyword()">Add Keyword</button>
+    </div>
+    <div id="keywordsList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 0.5rem; background: #f9f9f9;">
+        <div id="keywordsLoading">Loading keywords...</div>
+    </div>
+</div>
+
 <!-- New logs card -->
 <div class="card" id="logsCard">
     <h3>Application Logs</h3>
@@ -151,10 +163,88 @@
         }
     }
 
+    // Keywords management functions
+    async function loadKeywords() {
+        try {
+            const response = await fetch('/api/excluded_keywords');
+            const data = await response.json();
+            
+            if (!response.ok) throw new Error(data.error);
+            
+            const keywordsList = document.getElementById('keywordsList');
+            if (data.keywords.length === 0) {
+                keywordsList.innerHTML = '<div style="color: #666; font-style: italic;">No excluded keywords</div>';
+            } else {
+                keywordsList.innerHTML = data.keywords.map(keyword => 
+                    `<div style="display: flex; justify-content: space-between; align-items: center; margin: 0.25rem 0; padding: 0.25rem; border: 1px solid #ddd; border-radius: 3px; background: white;">
+                        <span>${keyword}</span>
+                        <button onclick="removeKeyword('${keyword}')" style="background: #f44336; color: white; border: none; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer;">Remove</button>
+                    </div>`
+                ).join('');
+            }
+        } catch (e) {
+            document.getElementById('keywordsList').innerHTML = '<div style="color: #f44336;">Error loading keywords: ' + e.message + '</div>';
+        }
+    }
+    
+    async function addKeyword() {
+        const keywordInput = document.getElementById('newKeyword');
+        const keyword = keywordInput.value.trim();
+        
+        if (!keyword) {
+            alert('Please enter a keyword');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/excluded_keywords', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({keyword})
+            });
+            const data = await response.json();
+            
+            if (!response.ok) throw new Error(data.error);
+            
+            keywordInput.value = '';
+            loadKeywords();
+        } catch (e) {
+            alert('Error adding keyword: ' + e.message);
+        }
+    }
+    
+    async function removeKeyword(keyword) {
+        if (!confirm('Are you sure you want to remove "' + keyword + '"?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/excluded_keywords/' + encodeURIComponent(keyword), {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+            
+            if (!response.ok) throw new Error(data.error);
+            
+            loadKeywords();
+        } catch (e) {
+            alert('Error removing keyword: ' + e.message);
+        }
+    }
+    
+    // Allow Enter key to add keyword
+    document.getElementById('newKeyword').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            addKeyword();
+        }
+    });
+
     checkStatus();
     setInterval(checkStatus, 5000);
     fetchLogs();
     setInterval(fetchLogs, connectionInterval * 1000);
+    loadKeywords();
+    setInterval(loadKeywords, 10000);
 </script>
 </body>
 </html>

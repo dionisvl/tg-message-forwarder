@@ -3,9 +3,10 @@ import logging
 import asyncio
 from typing import Optional
 
-from quart import Quart, render_template, request, session, redirect, url_for
+from quart import Quart, render_template, request, session, redirect, url_for, jsonify
 from bot import BotManager
 from config import Config
+from database import db_manager
 from hypercorn.config import Config as HyperConfig
 from hypercorn.asyncio import serve
 
@@ -33,7 +34,10 @@ async def init_app():
     config = HyperConfig()
     config.bind = ["0.0.0.0:5000"]
 
-    # Initialize bot manager first
+    # Initialize database first
+    await db_manager.initialize()
+    
+    # Initialize bot manager
     bot_manager = BotManager()
     # Try to start existing session
     await bot_manager.start_existing_session()
@@ -126,6 +130,58 @@ async def get_logs():
             log_data = f.read()
         return {'logs': log_data}
     except Exception as e:
+        return {'error': str(e)}, 500
+
+# Excluded keywords API endpoints
+@app.route('/api/excluded_keywords', methods=['GET'])
+async def get_excluded_keywords():
+    if not session.get('logged_in'):
+        return {'error': 'Unauthorized'}, 401
+    
+    try:
+        keywords = await db_manager.get_all_keywords()
+        return {'keywords': keywords}
+    except Exception as e:
+        logger.error(f"Error fetching excluded keywords: {e}")
+        return {'error': str(e)}, 500
+
+@app.route('/api/excluded_keywords', methods=['POST'])
+async def add_excluded_keyword():
+    if not session.get('logged_in'):
+        return {'error': 'Unauthorized'}, 401
+    
+    try:
+        data = await request.get_json()
+        keyword = data.get('keyword', '').strip()
+        
+        if not keyword:
+            return {'error': 'Keyword is required'}, 400
+        
+        if await db_manager.keyword_exists(keyword):
+            return {'error': 'Keyword already exists'}, 400
+        
+        success = await db_manager.add_keyword(keyword)
+        if success:
+            return {'message': 'Keyword added successfully'}
+        else:
+            return {'error': 'Failed to add keyword'}, 500
+    except Exception as e:
+        logger.error(f"Error adding excluded keyword: {e}")
+        return {'error': str(e)}, 500
+
+@app.route('/api/excluded_keywords/<keyword>', methods=['DELETE'])
+async def remove_excluded_keyword(keyword: str):
+    if not session.get('logged_in'):
+        return {'error': 'Unauthorized'}, 401
+    
+    try:
+        success = await db_manager.remove_keyword(keyword)
+        if success:
+            return {'message': 'Keyword removed successfully'}
+        else:
+            return {'error': 'Keyword not found'}, 404
+    except Exception as e:
+        logger.error(f"Error removing excluded keyword: {e}")
         return {'error': str(e)}, 500
 
 if __name__ == '__main__':

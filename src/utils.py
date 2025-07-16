@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 async def handle_message(client, event, condition_func):
     logger.info("Checking conditions")
-    if condition_func(event.message):
+    if await condition_func(event.message):
         try:
             # Check if client is authorized before processing
             if not await client.is_user_authorized():
@@ -44,14 +44,15 @@ async def handle_message(client, event, condition_func):
 
     logger.info("Message processing completed.")
 
-def text_contains_test(message):
+async def text_contains_test(message):
     logger.info("Checking message: " + message.text)
     logger.info(f"DEBUG: Message length is {len(message.text)} characters.")
 
-    # Check if the message contains excluded names
-    for excluded_name in Config.EXCLUDED_NAMES:
-        if excluded_name.strip() and excluded_name.strip().lower() in message.text.lower():
-            logger.warning(f"Message contains excluded name: {excluded_name}")
+    # Check if the message contains excluded keywords
+    excluded_keywords = await Config.get_excluded_keywords()
+    for keyword in excluded_keywords:
+        if keyword.strip() and keyword.strip().lower() in message.text.lower():
+            logger.warning(f"Message contains excluded keyword: {keyword}")
             return False
 
     # Check the summ of order

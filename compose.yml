@@ -2,13 +2,34 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     env_file:
       - .env
     volumes:
       - ./sessions:/app/sessions
+    depends_on:
+      - postgres
     logging:
       driver: "json-file"
       options:
         max-size: "1m"
         max-file: "2"
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: tgbot
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT_EXTERNAL}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "2"
+
+volumes:
+  postgres_data:

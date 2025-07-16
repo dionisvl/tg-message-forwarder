@@ -6,6 +6,8 @@ Built for performance and reliability while keeping the codebase clean and maint
 
 * Monitors group messages using user account session
 * Instantly forwards messages with "Test" button
+* Database-driven excluded keywords management
+* Web-based admin panel for configuration
 * Containerized with Docker for easy deployment
 * Secure credential management
 * Minimal memory footprint
@@ -13,7 +15,8 @@ Built for performance and reliability while keeping the codebase clean and maint
 ### Tech Stack
 * Python 3.12
 * Telethon 
-* Flask
+* Quart (async web framework)
+* PostgreSQL 17
 * Docker Compose
 
 
@@ -71,3 +74,60 @@ make up
 ### Crontab
 - crontab -e
 - @reboot cd /home/tgbot/tg-message-forwarder && make up
+
+## API Endpoints
+
+### Excluded Keywords Management
+
+#### GET /api/excluded_keywords
+Returns list of all excluded keywords.
+
+**Response:**
+```json
+{
+  "keywords": ["keyword1", "keyword2", "keyword3"]
+}
+```
+
+#### POST /api/excluded_keywords
+Adds a new excluded keyword.
+
+**Request:**
+```json
+{
+  "keyword": "new_keyword"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Keyword added successfully"
+}
+```
+
+#### DELETE /api/excluded_keywords/{keyword}
+Removes an excluded keyword.
+
+**Response:**
+```json
+{
+  "message": "Keyword removed successfully"
+}
+```
+
+### Database Configuration
+
+The PostgreSQL database is accessible externally via the configured port (default 5433).
+
+**Environment Variables:**
+- `DB_USER` - Database username
+- `DB_PASSWORD` - Database password  
+- `DB_HOST` - Database host (postgres for docker-compose)
+- `DB_PORT` - External database port
+- `DB_NAME` - Database name (tgbot)
+
+**External Access:**
+```bash
+psql -h your-server-ip -p 5433 -U tgbot_user -d tgbot
+```
