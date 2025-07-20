@@ -33,8 +33,9 @@ make up
 - put restart.sh to cron, for every night at 3:00 AM  
   - it's important:
 ```
+chmod +x /home/tgbot/restart.sh
 crontab -e
-0 3 * * * /home/tgbot/restart.sh
+0 3 * * * /home/tgbot/restart.sh >> /home/tgbot/logs/restart.log 2>&1
 ```
 - click admin panel http://127.0.0.1:5000/
 

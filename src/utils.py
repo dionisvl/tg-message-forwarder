@@ -10,9 +10,14 @@ async def handle_message(client, event, condition_func):
     logger.info("Checking conditions")
     if await condition_func(event.message):
         try:
-            # Check if client is authorized before processing
-            if not await client.is_user_authorized():
-                logger.error("Cannot process message - client not authorized")
+            # Check if client is authorized before processing using reliable API call
+            try:
+                me = await client.get_me()
+                if me is None:
+                    logger.error("Cannot process message - client not authorized (get_me returned None)")
+                    return
+            except Exception as auth_error:
+                logger.error(f"Cannot process message - authorization check failed: {auth_error}")
                 return
             
             # First, check if the message has a button and click it
