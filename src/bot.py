@@ -18,6 +18,9 @@ class BotManager:
         self._handler = None
         self._connection_monitor_task = None
         self._session_lost = False
+        self._auth_failure_count = 0
+        self._max_auth_failures = Config.MAX_AUTH_FAILURES
+        self._retry_delay = Config.AUTH_RETRY_DELAY
 
     def is_running(self):
         return self._running and self.client is not None and self.client.is_connected()
@@ -124,9 +127,10 @@ class BotManager:
             # Detailed connection health check every CONNECTION_CHECK_INTERVAL seconds
             current_time = asyncio.get_running_loop().time()
             if current_time - last_health_log >= Config.CONNECTION_CHECK_INTERVAL:
-                # Check if client is authorized first
-                if not await self.client.is_user_authorized():
-                    logger.error("Client is not authorized - session expired or invalid")
+                # Check authorization with retry mechanism
+                auth_result = await self._check_authorization_with_retry()
+                if not auth_result:
+                    logger.error(f"Authorization failed after {self._max_auth_failures} attempts")
                     self._session_lost = True
                     self._running = False
                     self._monitoring = False
@@ -164,6 +168,74 @@ class BotManager:
                 last_health_log = current_time
 
             await asyncio.sleep(1)
+
+    async def _check_authorization_with_retry(self):
+        """Check authorization with retry mechanism and session recovery"""
+        for attempt in range(self._max_auth_failures):
+            try:
+                # First, check if client is authorized
+                if await self.client.is_user_authorized():
+                    # Reset failure count on success
+                    self._auth_failure_count = 0
+                    return True
+                
+                logger.warning(f"Authorization check failed (attempt {attempt + 1}/{self._max_auth_failures})")
+                
+                # If not the last attempt, try to recover
+                if attempt < self._max_auth_failures - 1:
+                    logger.info("Attempting session recovery...")
+                    if await self._attempt_session_recovery():
+                        logger.info("Session recovery successful")
+                        self._auth_failure_count = 0
+                        return True
+                    
+                    logger.warning(f"Session recovery failed, waiting {self._retry_delay} seconds before retry...")
+                    await asyncio.sleep(self._retry_delay)
+                
+            except Exception as e:
+                logger.error(f"Error during authorization check (attempt {attempt + 1}): {e}")
+                if attempt < self._max_auth_failures - 1:
+                    await asyncio.sleep(self._retry_delay)
+        
+        self._auth_failure_count = self._max_auth_failures
+        return False
+    
+    async def _attempt_session_recovery(self):
+        """Attempt to recover session by reconnecting with existing session file"""
+        try:
+            logger.info("Attempting to recover session from file...")
+            
+            # Read existing session
+            with open('sessions/session.txt', 'r') as f:
+                session_str = f.read().strip()
+            
+            if not session_str:
+                logger.error("Session file is empty")
+                return False
+            
+            # Disconnect current client
+            if self.client and self.client.is_connected():
+                await self.client.disconnect()
+            
+            # Create new client with saved session
+            self.client = TelegramClient(StringSession(session_str), Config.API_ID, Config.API_HASH)
+            await self.client.connect()
+            
+            # Check if recovered session is authorized
+            if await self.client.is_user_authorized():
+                logger.info("Session recovery successful - client is authorized")
+                return True
+            else:
+                logger.error("Session recovery failed - client not authorized")
+                await self._diagnose_session_error()
+                return False
+                
+        except FileNotFoundError:
+            logger.error("Session file not found during recovery attempt")
+            return False
+        except Exception as e:
+            logger.error(f"Error during session recovery: {e}")
+            return False
 
 
     async def start_existing_session(self):

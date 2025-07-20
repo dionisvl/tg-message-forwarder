@@ -30,6 +30,12 @@ cp .env.example .env
 # ! Fill in your credentials !
 make up
 ```
+- put restart.sh to cron, for every night at 3:00 AM  
+  - it's important:
+```
+crontab -e
+0 3 * * * /home/tgbot/restart.sh
+```
 - click admin panel http://127.0.0.1:5000/
 
 

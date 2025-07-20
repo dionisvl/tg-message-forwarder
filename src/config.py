@@ -15,6 +15,10 @@ class Config:
     # check interval in seconds (default is 300 seconds = 5 minutes)
     CONNECTION_CHECK_INTERVAL = int(os.getenv('CONNECTION_CHECK_INTERVAL', 300))
     
+    # Authorization retry settings
+    MAX_AUTH_FAILURES = int(os.getenv('MAX_AUTH_FAILURES', 3))
+    AUTH_RETRY_DELAY = int(os.getenv('AUTH_RETRY_DELAY', 10))
+    
     # Database configuration
     DB_HOST = os.getenv('DB_HOST', 'localhost')
     DB_PORT = int(os.getenv('DB_PORT_INTERNAL', 5432))
