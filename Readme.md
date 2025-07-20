@@ -138,3 +138,7 @@ The PostgreSQL database is accessible externally via the configured port (defaul
 ```bash
 psql -h your-server-ip -p 5433 -U tgbot_user -d tgbot
 ```
+
+
+### Tools
+python tools/get_user_id.py user
