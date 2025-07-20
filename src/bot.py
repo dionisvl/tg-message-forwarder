@@ -150,15 +150,12 @@ class BotManager:
                 except Exception as e:
                     logger.error(f"Health check error: {e}")
 
-                # Check for group existence and membership only if authorized
+                # Check for group existence and membership 
                 try:
-                    if await self.client.is_user_authorized():
-                        group = await self.client.get_entity(Config.SOURCE_GROUP_ID)
-                        # If group exists, attempt to retrieve its title
-                        group_title = getattr(group, 'title', 'Unknown Group')
-                        logger.info(f"2 - Membership in: '{group_title}'")
-                    else:
-                        logger.error("2 - Cannot check group - client not authorized")
+                    group = await self.client.get_entity(Config.SOURCE_GROUP_ID)
+                    # If group exists, attempt to retrieve its title
+                    group_title = getattr(group, 'title', 'Unknown Group')
+                    logger.info(f"2 - Membership in: '{group_title}'")
                 except Exception as e:
                     logger.error(f"Group check error: {e}")
 
@@ -170,32 +167,41 @@ class BotManager:
             await asyncio.sleep(1)
 
     async def _check_authorization_with_retry(self):
-        """Check authorization with retry mechanism and session recovery"""
+        """Check authorization with retry mechanism using real API call instead of is_user_authorized()"""
         for attempt in range(self._max_auth_failures):
             try:
-                # First, check if client is authorized
-                if await self.client.is_user_authorized():
+                # Use get_me() instead of is_user_authorized() for reliable check
+                me = await self.client.get_me()
+                if me is not None:
                     # Reset failure count on success
                     self._auth_failure_count = 0
+                    logger.debug(f"Authorization check successful - user: {me.first_name}")
                     return True
-                
-                logger.warning(f"Authorization check failed (attempt {attempt + 1}/{self._max_auth_failures})")
-                
-                # If not the last attempt, try to recover
-                if attempt < self._max_auth_failures - 1:
-                    logger.info("Attempting session recovery...")
-                    if await self._attempt_session_recovery():
-                        logger.info("Session recovery successful")
-                        self._auth_failure_count = 0
-                        return True
-                    
-                    logger.warning(f"Session recovery failed, waiting {self._retry_delay} seconds before retry...")
-                    await asyncio.sleep(self._retry_delay)
+                else:
+                    logger.warning(f"Authorization check failed - get_me() returned None (attempt {attempt + 1}/{self._max_auth_failures})")
                 
             except Exception as e:
-                logger.error(f"Error during authorization check (attempt {attempt + 1}): {e}")
-                if attempt < self._max_auth_failures - 1:
-                    await asyncio.sleep(self._retry_delay)
+                logger.warning(f"Authorization check failed with error (attempt {attempt + 1}/{self._max_auth_failures}): {e}")
+                
+                # Check if it's a recoverable error
+                error_str = str(e)
+                if any(recoverable in error_str for recoverable in [
+                    "AuthKeyUnregistered", "SessionExpired", "SessionRevoked", 
+                    "ConnectionError", "TimeoutError", "NetworkError"
+                ]):
+                    # If not the last attempt, try to recover
+                    if attempt < self._max_auth_failures - 1:
+                        logger.info("Attempting session recovery for recoverable error...")
+                        if await self._attempt_session_recovery():
+                            logger.info("Session recovery successful")
+                            self._auth_failure_count = 0
+                            return True
+                        
+                        logger.warning(f"Session recovery failed, waiting {self._retry_delay} seconds before retry...")
+                        await asyncio.sleep(self._retry_delay)
+                else:
+                    logger.error(f"Non-recoverable authorization error: {e}")
+                    break
         
         self._auth_failure_count = self._max_auth_failures
         return False
@@ -221,12 +227,17 @@ class BotManager:
             self.client = TelegramClient(StringSession(session_str), Config.API_ID, Config.API_HASH)
             await self.client.connect()
             
-            # Check if recovered session is authorized
-            if await self.client.is_user_authorized():
-                logger.info("Session recovery successful - client is authorized")
-                return True
-            else:
-                logger.error("Session recovery failed - client not authorized")
+            # Test session with real API call instead of is_user_authorized()
+            try:
+                me = await self.client.get_me()
+                if me is not None:
+                    logger.info(f"Session recovery successful - authenticated as {me.first_name}")
+                    return True
+                else:
+                    logger.error("Session recovery failed - get_me() returned None")
+                    return False
+            except Exception as auth_error:
+                logger.error(f"Session recovery failed - API call error: {auth_error}")
                 await self._diagnose_session_error()
                 return False
                 
@@ -251,8 +262,18 @@ class BotManager:
                 self.client = TelegramClient(StringSession(session_str), Config.API_ID, Config.API_HASH)
                 await self.client.connect()
 
-                if not await self.client.is_user_authorized():
-                    logger.error("Existing session is not authorized")
+                # Test session with real API call instead of is_user_authorized()
+                try:
+                    me = await self.client.get_me()
+                    if me is None:
+                        logger.error("Existing session is not authorized - get_me() returned None")
+                        await self._diagnose_session_error()
+                        self._session_lost = True
+                        return False
+                    else:
+                        logger.info(f"Session validated successfully - authenticated as {me.first_name}")
+                except Exception as auth_error:
+                    logger.error(f"Existing session is not authorized - API error: {auth_error}")
                     await self._diagnose_session_error()
                     self._session_lost = True
                     return False
