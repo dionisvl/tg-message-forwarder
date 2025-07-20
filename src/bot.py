@@ -1,8 +1,9 @@
 from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError, SessionExpiredError
-from telethon.sessions import StringSession
 from config import Config
 from utils import handle_message, text_contains_test
+from telegram_factory import TelegramClientFactory
+from session_manager import SessionManager
 import logging
 import asyncio
 
@@ -33,26 +34,8 @@ class BotManager:
 
     async def _diagnose_session_error(self):
         """Diagnose session authorization error and log details"""
-        try:
-            me = await self.client.get_me()
-            if me is None:
-                logger.error("Session error: Unable to get user info - session may be expired or revoked")
-            else:
-                logger.error(f"Session error: Got user info but not authorized - possible security reset for user {me.phone}")
-        except Exception as auth_error:
-            logger.error(f"Session error details: {type(auth_error).__name__}: {auth_error}")
-            
-            error_str = str(auth_error)
-            if "UserDeactivated" in error_str:
-                logger.error("Session error reason: Account was deactivated")
-            elif "AuthKeyUnregistered" in error_str:
-                logger.error("Session error reason: Authorization key was unregistered (logged out from another device)")
-            elif "SessionExpired" in error_str:
-                logger.error("Session error reason: Session has expired")
-            elif "SessionRevoked" in error_str:
-                logger.error("Session error reason: Session was revoked (password changed or security reset)")
-            else:
-                logger.error("Session error reason: Unknown authorization error")
+        error_diagnosis = await TelegramClientFactory.diagnose_session_error(self.client)
+        logger.error(f"Session error reason: {error_diagnosis}")
 
     async def toggle_monitoring(self):
         if not self.is_running():
@@ -80,8 +63,7 @@ class BotManager:
             await self.client.disconnect()
             self.client = None
 
-        self.client = TelegramClient(StringSession(), Config.API_ID, Config.API_HASH)
-        await self.client.connect()
+        self.client = await TelegramClientFactory.create_client()
         self.phone = phone
         code_request = await self.client.send_code_request(phone)
         self.phone_code_hash = code_request.phone_code_hash
@@ -103,14 +85,20 @@ class BotManager:
             await self.client.sign_in(password=Config.PASSWORD_2FA)
 
         session_str = self.client.session.save()
-        with open('sessions/session.txt', 'w') as f:
-            f.write(session_str)
+        SessionManager.save_session(session_str, 'user')
 
         self._running = True
         self._session_lost = False
         # Start the unified connection monitor task
         self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
         logger.info("Bot started successfully with new login")
+
+        is_monitoring = await self.toggle_monitoring()
+        if is_monitoring:
+            logger.info("Telethon group monitoring started")
+        else:
+            logger.error("Error starting Telethon group monitoring")
+            raise Exception("Error starting Telethon group monitoring")
 
     async def _monitor_and_keep_connection(self):
         logger.info(f"Starting connection monitor (detailed check interval: {Config.CONNECTION_CHECK_INTERVAL} seconds)")
@@ -211,39 +199,31 @@ class BotManager:
         try:
             logger.info("Attempting to recover session from file...")
             
-            # Read existing session
-            with open('sessions/session.txt', 'r') as f:
-                session_str = f.read().strip()
+            # Read existing session using SessionManager
+            session_str = SessionManager.load_session('user')
             
             if not session_str:
-                logger.error("Session file is empty")
+                logger.error("Session file is empty or not found")
                 return False
             
             # Disconnect current client
             if self.client and self.client.is_connected():
                 await self.client.disconnect()
             
-            # Create new client with saved session
-            self.client = TelegramClient(StringSession(session_str), Config.API_ID, Config.API_HASH)
-            await self.client.connect()
+            # Create new client with saved session using factory
+            self.client = await TelegramClientFactory.create_client(session_str)
             
-            # Test session with real API call instead of is_user_authorized()
-            try:
-                me = await self.client.get_me()
-                if me is not None:
-                    logger.info(f"Session recovery successful - authenticated as {me.first_name}")
-                    return True
-                else:
-                    logger.error("Session recovery failed - get_me() returned None")
-                    return False
-            except Exception as auth_error:
-                logger.error(f"Session recovery failed - API call error: {auth_error}")
+            # Test session with factory method
+            if await TelegramClientFactory.check_authorization(self.client):
+                user_info = await TelegramClientFactory.get_user_info(self.client)
+                name = user_info['first_name'] if user_info else 'User'
+                logger.info(f"Session recovery successful - authenticated as {name}")
+                return True
+            else:
+                logger.error("Session recovery failed - authorization check failed")
                 await self._diagnose_session_error()
                 return False
                 
-        except FileNotFoundError:
-            logger.error("Session file not found during recovery attempt")
-            return False
         except Exception as e:
             logger.error(f"Error during session recovery: {e}")
             return False
@@ -252,50 +232,47 @@ class BotManager:
     async def start_existing_session(self):
         """Start bot with existing session if available"""
         try:
-            with open('sessions/session.txt', 'r') as f:
-                session_str = f.read().strip()
-                logger.info("Session file found, attempting to use existing session...")
+            # Load existing session using SessionManager
+            session_str = SessionManager.load_session('user')
+            
+            if not session_str:
+                logger.error("No session file found")
+                return False
+                
+            logger.info("Session file found, attempting to use existing session...")
 
-                if self.client:
-                    await self.client.disconnect()
+            if self.client:
+                await self.client.disconnect()
 
-                self.client = TelegramClient(StringSession(session_str), Config.API_ID, Config.API_HASH)
-                await self.client.connect()
+            # Create client using factory with existing session
+            self.client = await TelegramClientFactory.create_client(session_str)
 
-                # Test session with real API call instead of is_user_authorized()
-                try:
-                    me = await self.client.get_me()
-                    if me is None:
-                        logger.error("Existing session is not authorized - get_me() returned None")
-                        await self._diagnose_session_error()
-                        self._session_lost = True
-                        return False
-                    else:
-                        logger.info(f"Session validated successfully - authenticated as {me.first_name}")
-                except Exception as auth_error:
-                    logger.error(f"Existing session is not authorized - API error: {auth_error}")
-                    await self._diagnose_session_error()
-                    self._session_lost = True
-                    return False
+            # Test session with factory method
+            if await TelegramClientFactory.check_authorization(self.client):
+                user_info = await TelegramClientFactory.get_user_info(self.client)
+                name = user_info['first_name'] if user_info else 'User'
+                logger.info(f"Session validated successfully - authenticated as {name}")
+            else:
+                logger.error("Existing session is not authorized")
+                await self._diagnose_session_error()
+                self._session_lost = True
+                return False
 
-                self._running = True
-                self._session_lost = False
-                # Start the unified connection monitor task
-                self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
-                logger.info("Telethon started successfully with existing session")
+            self._running = True
+            self._session_lost = False
+            # Start the unified connection monitor task
+            self._connection_monitor_task = asyncio.create_task(self._monitor_and_keep_connection())
+            logger.info("Telethon started successfully with existing session")
 
-                is_monitoring = await self.toggle_monitoring()
-                if is_monitoring:
-                    logger.info("Telethon group monitoring started")
-                else:
-                    logger.error("Error starting Telethon group monitoring")
-                    raise Exception("Error starting Telethon group monitoring")
+            is_monitoring = await self.toggle_monitoring()
+            if is_monitoring:
+                logger.info("Telethon group monitoring started")
+            else:
+                logger.error("Error starting Telethon group monitoring")
+                raise Exception("Error starting Telethon group monitoring")
 
-                return True
+            return True
 
-        except FileNotFoundError:
-            logger.error("No session file found")
-            return False
         except SessionExpiredError:
             logger.error("Session expired")
             return False

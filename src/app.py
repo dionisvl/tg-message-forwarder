@@ -7,6 +7,7 @@ from quart import Quart, render_template, request, session, redirect, url_for, j
 from bot import BotManager
 from config import Config
 from database import db_manager
+from auth_decorators import require_auth
 from hypercorn.config import Config as HyperConfig
 from hypercorn.asyncio import serve
 
@@ -134,10 +135,8 @@ async def get_logs():
 
 # Excluded keywords API endpoints
 @app.route('/api/excluded_keywords', methods=['GET'])
+@require_auth
 async def get_excluded_keywords():
-    if not session.get('logged_in'):
-        return {'error': 'Unauthorized'}, 401
-    
     try:
         keywords = await db_manager.get_all_keywords()
         return {'keywords': keywords}
@@ -146,10 +145,8 @@ async def get_excluded_keywords():
         return {'error': str(e)}, 500
 
 @app.route('/api/excluded_keywords', methods=['POST'])
+@require_auth
 async def add_excluded_keyword():
-    if not session.get('logged_in'):
-        return {'error': 'Unauthorized'}, 401
-    
     try:
         data = await request.get_json()
         keyword = data.get('keyword', '').strip()
@@ -170,10 +167,8 @@ async def add_excluded_keyword():
         return {'error': str(e)}, 500
 
 @app.route('/api/excluded_keywords/<keyword>', methods=['DELETE'])
+@require_auth
 async def remove_excluded_keyword(keyword: str):
-    if not session.get('logged_in'):
-        return {'error': 'Unauthorized'}, 401
-    
     try:
         success = await db_manager.remove_keyword(keyword)
         if success:
