@@ -1,144 +1,174 @@
 # Telegram Message Forwarder
-Blazing fast and secure message forwarder for Telegram groups.
-Built for performance and reliability while keeping the codebase clean and maintainable. Ideal for automated message monitoring and forwarding in private Telegram groups.
 
-### Features
+Async Telegram message forwarding service with a small web admin panel and PostgreSQL-backed runtime configuration.
 
-* Monitors group messages using user account session
-* Instantly forwards messages with "Test" button
-* Database-driven excluded keywords management
-* Web-based admin panel for configuration
-* Containerized with Docker for easy deployment
-* Secure credential management
-* Minimal memory footprint
+The project is built for private group monitoring workflows: it connects through a Telegram user session, filters messages by configured rules, and forwards matching messages to a target user. Runtime settings such as excluded keywords are managed through HTTP endpoints and persisted in PostgreSQL.
 
-### Tech Stack
-* Python 3.12
-* Telethon 
-* Quart (async web framework)
-* PostgreSQL 17
-* Docker Compose
+## Stack
 
+- Python 3.12
+- Telethon
+- Quart
+- PostgreSQL 17
+- Docker Compose
 
-## Installation
+## Features
+
+- Telegram group monitoring through a user account session
+- Forwarding to a configured target user
+- Excluded keyword management stored in PostgreSQL
+- Web admin panel for operational configuration
+- Docker Compose setup for the app and database
+- Persistent Telegram sessions mounted from `./sessions`
+- Basic restart helper for simple VPS deployments
+
+## Project Layout
+
+```text
+.
+├── src/                  # application code
+├── templates/            # admin UI templates
+├── migrations/           # database migrations
+├── compose.yml           # app + PostgreSQL services
+├── Dockerfile            # Python application image
+├── Makefile              # local operational commands
+├── restart.sh            # simple restart helper
+├── test.py
+└── test_excluded_keywords.py
 ```
-apt-get update
-apt-get install git make
-curl -fsSL https://get.docker.com | sudo bash
-git clone <repo>
+
+## Quick Start
+
+```bash
+git clone https://github.com/dionisvl/tg-message-forwarder.git
+cd tg-message-forwarder
+
 cp .env.example .env
-# ! Fill in your credentials !
+# Fill in Telegram credentials, target user, source group, and admin settings.
+
 make up
 ```
-- put restart.sh to cron, for every night at 3:00 AM  
-  - it's important:
+
+The admin panel is exposed on:
+
+```text
+http://127.0.0.1:5001
 ```
-chmod +x /home/tgbot/restart.sh
-crontab -e
-0 3 * * * /home/tgbot/restart.sh >> /home/tgbot/logs/restart.log 2>&1
+
+Common commands:
+
+```bash
+make up       # start services
+make down     # stop services
+make build    # rebuild and start
+make sh       # shell inside the web container
 ```
-- click admin panel http://127.0.0.1:5000/
 
+## Configuration
 
-### Getting needed envs
+Core environment variables:
 
-1. Getting API_ID and API_HASH:  
-      •	Go to my.telegram.org  
-      •	Login with your Telegram account  
-      •	Select "API development tools"  
-      •	Create a new application (App title and Short name can be anything)  
-      •	After creation, you'll receive API_ID (numbers) and API_HASH (alphanumeric)
-2. Getting Group ID (SOURCE_GROUP_ID) (Web)
-    •	Open web.telegram.org  
-    •	Go to target group  
-    •	Check URL: web.telegram.org/k/#-XXXXXXXXX  
-    •	ID is the number after # (including minus)  
+| Variable | Purpose |
+|---|---|
+| `API_ID` / `API_HASH` | Telegram API credentials from `my.telegram.org` |
+| `PHONE_NUMBER` | Telegram account phone number used for the user session |
+| `2FA_PASSWORD` | Telegram two-factor password, if enabled |
+| `SOURCE_GROUP_ID` | Telegram group/channel id to monitor |
+| `TARGET_USER_ID` | Telegram user id that receives forwarded messages |
+| `TARGET_USER_NICKNAME` | Optional target nickname used by the app UI/rules |
+| `ORDER_AMOUNT_THRESHOLD` | Numeric threshold used by message matching logic |
+| `EXCLUDED_NAMES` | Comma-separated names excluded from matching |
+| `CONNECTION_CHECK_INTERVAL` | Connection check interval in seconds |
+| `MAX_AUTH_FAILURES` | Max authorization attempts before stopping retries |
+| `AUTH_RETRY_DELAY` | Delay between authorization retries, in seconds |
+| `ADMIN_PASSWORD` / `ADMIN_SECRET` | Admin panel credentials/secrets |
+| `BOT_TOKEN` | Bot token used only by helper/testing flows |
+| `DB_*` | PostgreSQL connection settings |
 
-3. Getting your USER ID (TARGET_USER_ID):  
-      •	Message @userinfobot  
-      •	It will automatically reply  
-      •	Look for "Id: XXXXXXXXX" in the first line - this is your TARGET_USER_ID  
+Use `.env.example` as the source of truth for supported variables.
 
-#### Getting BOTs data:
-1. Getting BOT_TOKEN:
-   •	Find @BotFather in Telegram  
-   •	Send him /newbot  
-   •	Choose a name for your bot  
-   •	Choose a username (must end with 'bot')  
-   •	BotFather will give you the bot token - a long string of letters and numbers
-2. Getting Group ID (SOURCE_GROUP_ID) By BOT:  
-      •	Add @RawDataBot to your target group  
-      •	The bot will send group information  
-      •	Look for "Chat ID" field - this is your SOURCE_GROUP_ID  
-      •	Remove @RawDataBot from the group after getting the ID  
+## Getting Telegram IDs
 
-### Venv
-- python3.12 -m venv venv
-- bash
-- source venv/bin/activate / source venv/bin/activate.fish
-- pip install -r requirements.txt
+Telegram API credentials:
 
-### Crontab
-- crontab -e
-- @reboot cd /home/tgbot/tg-message-forwarder && make up
+1. Open `https://my.telegram.org`.
+2. Log in with the Telegram account that will own the session.
+3. Open API development tools.
+4. Create an application and copy `API_ID` and `API_HASH`.
 
-## API Endpoints
+Source group id:
 
-### Excluded Keywords Management
+1. Open `https://web.telegram.org`.
+2. Open the target group.
+3. Check the URL segment after `#`; group ids are usually negative numbers.
 
-#### GET /api/excluded_keywords
-Returns list of all excluded keywords.
+Target user id:
 
-**Response:**
+1. Send a message to `@userinfobot`.
+2. Copy the numeric id from the response.
+
+Bot token for helper/test flows:
+
+1. Open `@BotFather`.
+2. Create a bot with `/newbot`.
+3. Copy the token into `BOT_TOKEN` if the helper flow needs it.
+
+## API
+
+Excluded keywords:
+
+```http
+GET /api/excluded_keywords
+```
+
 ```json
 {
-  "keywords": ["keyword1", "keyword2", "keyword3"]
+  "keywords": ["keyword1", "keyword2"]
 }
 ```
 
-#### POST /api/excluded_keywords
-Adds a new excluded keyword.
+```http
+POST /api/excluded_keywords
+Content-Type: application/json
 
-**Request:**
-```json
 {
   "keyword": "new_keyword"
 }
 ```
 
-**Response:**
-```json
-{
-  "message": "Keyword added successfully"
-}
+```http
+DELETE /api/excluded_keywords/{keyword}
 ```
 
-#### DELETE /api/excluded_keywords/{keyword}
-Removes an excluded keyword.
+## Operations
 
-**Response:**
-```json
-{
-  "message": "Keyword removed successfully"
-}
-```
+For a simple VPS deployment, the repository includes `restart.sh`. If you use cron, keep logs outside the container lifecycle:
 
-### Database Configuration
-
-The PostgreSQL database is accessible externally via the configured port (default 5433).
-
-**Environment Variables:**
-- `DB_USER` - Database username
-- `DB_PASSWORD` - Database password  
-- `DB_HOST` - Database host (postgres for docker-compose)
-- `DB_PORT` - External database port
-- `DB_NAME` - Database name (tgbot)
-
-**External Access:**
 ```bash
-psql -h your-server-ip -p 5433 -U tgbot_user -d tgbot
+chmod +x /home/tgbot/restart.sh
+crontab -e
 ```
 
+```cron
+0 3 * * * /home/tgbot/restart.sh >> /home/tgbot/logs/restart.log 2>&1
+```
 
-### Tools
-python tools/get_user_id.py user
+The Compose file publishes PostgreSQL on `DB_PORT_EXTERNAL`. For production-like deployments, restrict that port at the firewall level or remove the host port mapping if external database access is not required.
+
+## Local Python Environment
+
+Docker Compose is the default path. For direct local development:
+
+```bash
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Security Notes
+
+- Do not commit `.env`, Telegram session files, or runtime logs.
+- Treat Telegram user sessions like credentials.
+- Set a strong `ADMIN_PASSWORD` and `ADMIN_SECRET` before exposing the admin panel.
+- Avoid exposing PostgreSQL publicly unless there is a specific operational reason.
+
